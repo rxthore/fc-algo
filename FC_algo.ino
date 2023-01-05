@@ -17,7 +17,15 @@ float AcX_offset, AcY_offset, AcZ_offset;
 float GyX_offset, GyY_offset, GyZ_offset;
 
 // number of samples to use for calibration
-int num_samples = 1000;
+int num_samples = 5000;
+
+float angleX = 0.0;
+float angleY = 0.0;
+float angleZ = 0.0;
+
+float pitch = 0.0;
+float roll = 0.0;
+float yaw = 0.0;
 
 void setup() {
   // for printing on serial monitor
@@ -65,14 +73,14 @@ void setup() {
   Serial.print(" ");
   Serial.print(GyY_offset);
   Serial.print(" ");
-  Serial.print(GyZ_offset);
+  Serial.println(GyZ_offset);
 
   Serial.print("Accelerometer offsets : ");
   Serial.print(AcX_offset);
   Serial.print(" ");
   Serial.print(AcY_offset);
   Serial.print(" ");
-  Serial.print(AcZ_offset);
+  Serial.println(AcZ_offset);
   
   // indicate on pin 13 that calibration is done
   pinMode(13, OUTPUT);
@@ -91,6 +99,52 @@ void loop() {
 }
 
 int imu_read() {
+  digitalWrite(13, HIGH);
   mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+
+  AcX_cal = ax - AcX_offset;
+  AcY_cal = ay - AcY_offset;
+  AcZ_cal = az - AcZ_offset;
+  GyX_cal = gx - GyX_offset;
+  GyY_cal = gy - GyY_offset;
+  GyZ_cal = gz - GyZ_offset;
+
+  // Serial.print("Gyro (x, y, z): ");
+  // Serial.print(GyX_cal);
+  // Serial.print(" ");
+  // Serial.print(GyY_cal);
+  // Serial.print(" ");
+  // Serial.println(GyZ_cal);
+
+  // Serial.print("Accelerometer (x, y, z): ");
+  // Serial.print(AcX_cal);
+  // Serial.print(" ");
+  // Serial.print(AcY_cal);
+  // Serial.print(" ");
+  // Serial.println(AcZ_cal);
+
+  // Convert the acceleration values to g's
+  float axf = AcX_cal / 16384.0;
+  float ayf = AcY_cal / 16384.0;
+  float azf = AcZ_cal / 16384.0;
+
+  // Convert the gyro values to radians/second
+  float gxf = GyX_cal * (PI/180);
+  float gyf = GyY_cal * (PI/180);
+  float gzf = GyZ_cal * (PI/180);
+
+  // Calculate the pitch and roll angles using a complementary filter
+  float alpha = 0.96;
+  pitch = alpha * (pitch + gyf * 0.01) + (1.0 - alpha) * atan2(ayf, azf);
+  roll = alpha * (roll + gxf * 0.01) + (1.0 - alpha) * atan2(-axf, sqrt(ayf * ayf + azf * azf));
+
+  // Print the pitch, roll, and yaw angles
+  Serial.print("Pitch: ");
+  Serial.print(pitch);
+  Serial.print("  Roll: ");
+  Serial.print(roll);
+  Serial.print("  Yaw: ");
+  Serial.println(yaw);
+
   delay(500); // Delay for 250 milliseconds
 }
