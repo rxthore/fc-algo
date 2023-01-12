@@ -2,8 +2,15 @@
 #include <I2Cdev.h> // Include the I2Cdev library
 #include <MPU6050.h> // Include the MPU6050 library
 #define DT 0.01
+#define GYRO_SENSITIVITY 131
+#define ACC_SENSITIVITY 16384 
+#define GRAVITATIONAL_ACCELERATION 9.81
+#define TIME_INTERVAL 0.1
+#define PI 3.14159265
 
 MPU6050 mpu; // Create a MPU6050 object
+
+float gyro_range = 100;
 
 // raw sensor data
 int16_t ax, ay, az; // Variables to store accelerometer data
@@ -27,6 +34,8 @@ int num_samples = 2000;
 float roll = 0.0;
 float pitch = 0.0;
 float yaw = 0.0;
+
+float roll_deg, pitch_deg, yaw_deg = 0.0;
 
 void setup() {
   // for printing on serial monitor
@@ -60,7 +69,7 @@ void setup() {
     GyY_sum += gy;
     GyZ_sum += gz;
   }
-
+  
   AcX_offset = AcX_sum / num_samples;
   AcY_offset = AcY_sum / num_samples;
   AcZ_offset = AcZ_sum / num_samples;
@@ -107,23 +116,38 @@ int imu_read() {
 
   // calculate calibrated readings
   // convert accelerometer readings to g's
-  AcX_cal = (ax - AcX_offset) / 16384;
-  AcY_cal = (ay - AcY_offset) / 16384;
-  AcZ_cal = (az - AcZ_offset) / 16384;
+  AcX_cal = ((ax - AcX_offset) / 16384) * GRAVITATIONAL_ACCELERATION;
+  AcY_cal = ((ay - AcY_offset) / 16384) * GRAVITATIONAL_ACCELERATION;
+  AcZ_cal = ((az - AcZ_offset) / 16384) * GRAVITATIONAL_ACCELERATION;
   // convert gyro readings to radians per second
-  GyX_cal = ((gx - GyX_offset) / 100) * (PI / 180);
-  GyY_cal = ((gy - GyY_offset) / 100) * (PI / 180);
-  GyZ_cal = ((gz - GyZ_offset) / 100) * (PI / 180);
+  GyX_cal = ((gx - GyX_offset) / GYRO_SENSITIVITY) * (PI / 180);
+  GyY_cal = ((gy - GyY_offset) / GYRO_SENSITIVITY) * (PI / 180);
+  GyZ_cal = ((gz - GyZ_offset) / GYRO_SENSITIVITY) * (PI / 180);
 
-  applyLowPassFilter();
-  // applyComplementaryFilter();  
+  // calculate roll, pitch and yaw using accelerometer
+  float roll_acc = atan2(AcY_cal, AcZ_cal);
+  float pitch_acc = atan2(-AcX_cal, sqrt(AcY_cal * AcY_cal + AcZ_cal * AcZ_cal));
+  float yaw_acc = atan2(AcX_cal, sqrt(AcY_cal * AcY_cal + AcZ_cal * AcZ_cal));
 
-  float tempDt = 0.01;
+  // calculate angular velocity
+  float gyro_roll = GyX_cal * TIME_INTERVAL;
+  float gyro_pitch = GyY_cal * TIME_INTERVAL;
+  float gyro_yaw = GyZ_cal * TIME_INTERVAL;
 
-  roll += GyY_cal * tempDt;
-  pitch += GyX_cal * tempDt;
-  yaw += GyZ_cal * tempDt;
+  applyComplementaryFilter(roll_acc, pitch_acc, yaw_acc, gyro_roll, gyro_pitch, gyro_yaw);  
 
+  // Serial.print(gyro_roll);
+  // Serial.print(",");
+  // Serial.print(gyro_pitch);
+  // Serial.print(",");
+  // Serial.println(gyro_yaw);
+
+  // Serial.print(roll_acc);
+  // Serial.print(",");
+  // Serial.print(pitch_acc);
+  // Serial.print(",");
+  // Serial.println(yaw_acc);
+  
   Serial.print(roll);
   Serial.print(",");
   Serial.print(pitch);
@@ -134,22 +158,30 @@ int imu_read() {
 }
 
 void applyLowPassFilter() {
-  float alpha = 0.8;
+  float alpha = 0.98;
   // apply lowpass on gyro
-  gx_filtered = alpha * gx_filtered + (1.0 - alpha) * GyX_cal;
-  gy_filtered = alpha * gy_filtered + (1.0 - alpha) * GyY_cal;
-  gz_filtered = alpha * gz_filtered + (1.0 - alpha) * GyZ_cal;
-  // apply lowpass on accelerometer
-  ax_filtered = alpha * ax_filtered + (1.0 - alpha) * AcX_cal;
-  ay_filtered = alpha * ay_filtered + (1.0 - alpha) * AcY_cal;
-  az_filtered = alpha * az_filtered + (1.0 - alpha) * AcZ_cal;
+  // gx_filtered = alpha * gx_filtered + (1.0 - alpha) * GyX_cal;
+  // gy_filtered = alpha * gy_filtered + (1.0 - alpha) * GyY_cal;
+  // gz_filtered = alpha * gz_filtered + (1.0 - alpha) * GyZ_cal;
+  // // apply lowpass on accelerometer
+  // ax_filtered = alpha * ax_filtered + (1.0 - alpha) * AcX_cal;
+  // ay_filtered = alpha * ay_filtered + (1.0 - alpha) * AcY_cal;
+  // az_filtered = alpha * az_filtered + (1.0 - alpha) * AcZ_cal;
+    
 }
 
-void applyComplementaryFilter() {
-  float alpha = 0.98;
-  float dt = 0.01;
+void applyComplementaryFilter(float roll_acc, float pitch_acc, float yaw_acc, float gyro_roll, float gyro_pitch, float gyro_yaw) {
+  float ALPHA = 0.8;
 
-  roll = alpha*(roll + GyY_cal*dt) + (1-alpha)*atan2(AcY_cal, AcZ_cal);
-  pitch = alpha*(pitch + GyX_cal*dt) + (1-alpha)*atan2(-AcX_cal, sqrt(AcY_cal*AcY_cal + AcZ_cal*AcZ_cal));
-  yaw = alpha*(yaw + GyZ_cal*dt) + (1-alpha)*atan2(AcY_cal, AcX_cal);
+  roll = ALPHA * (roll + gyro_roll) + (1.0 - ALPHA) * roll_acc;
+  pitch = ALPHA * (pitch + gyro_pitch) + (1.0 - ALPHA) * pitch_acc;
+  yaw = ALPHA * (yaw + gyro_yaw) + (1.0 - ALPHA) * yaw_acc;
+
+  // radToDeg();
+}
+
+void radToDeg() {
+  roll = roll * 180 / PI;
+  pitch = pitch * 180 / PI;
+  yaw = yaw * 180 / PI;
 }

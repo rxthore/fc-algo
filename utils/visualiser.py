@@ -14,9 +14,9 @@ ser = serial.Serial('/dev/cu.usbserial-10', 9600)
 def main():
     video_flags = OPENGL | DOUBLEBUF
     pygame.init()
-    screen = pygame.display.set_mode((1920, 1080), video_flags)
+    screen = pygame.display.set_mode((1000, 700), video_flags)
     pygame.display.set_caption("IMU")
-    resizewin(1920, 1080)
+    resizewin(1000, 700)
     init()
     frames = 0
     ticks = pygame.time.get_ticks()
@@ -41,7 +41,7 @@ def main():
                 print(_rotations)
                 roll, pitch, yaw = _rotations
 
-                draw(1, yaw, pitch, roll)
+                draw(1, math.degrees(yaw), math.degrees(pitch), math.degrees(roll))
                 pygame.display.flip()
                 frames += 1
             except:
@@ -78,7 +78,7 @@ def draw(w, nx, ny, nz):
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     glLoadIdentity()
     glTranslatef(0, 0.0, -7.0)
-    
+
     drawText((-2.6, -2, 2), "Press Escape to exit.", 16)
 
     yaw = nx
