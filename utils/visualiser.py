@@ -41,7 +41,9 @@ def main():
                 print(_rotations)
                 roll, pitch, yaw = _rotations
 
+                # (TODO:) REMOVE RADIANS TO DEGREE CONVERSION
                 draw(1, math.degrees(yaw), math.degrees(pitch), math.degrees(roll))
+                # draw(1, yaw, pitch, roll)
                 pygame.display.flip()
                 frames += 1
             except:
